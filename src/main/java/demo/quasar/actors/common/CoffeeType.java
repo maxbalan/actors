@@ -7,18 +7,29 @@ package demo.quasar.actors.common;
  */
 public enum CoffeeType {
 
-    ESPRESSO("espresso", 2),
-    CAPPUCCINO("cappuccino", 3),
-    MOCHA("mocha", 5),
-    LATTE("latte", 15),
-    AMERICANO("americano", 7);
+    ESPRESSO    (1,"espresso", 2),
+    CAPPUCCINO  (2,"cappuccino", 3),
+    MOCHA       (3,"mocha", 5),
+    LATTE       (4,"latte", 15),
+    AMERICANO   (5,"americano", 7);
 
     private final String value;
     private final int time;
+    private final int menuOrder;
 
-    private CoffeeType(String value, int time) {
+    private CoffeeType(String value, int time, int menuOrder) {
         this.value = value;
         this.time = time;
+        this.menuOrder = menuOrder;
+    }
+
+    public static CoffeeType getCoffee(int orderId) {
+        for(CoffeeType coffeeType : values()) {
+            if(coffeeType.getMenuOrder() == orderId)
+                return coffeeType;
+        }
+
+        return null;
     }
 
     public String getValue() {
@@ -29,4 +40,7 @@ public enum CoffeeType {
         return time;
     }
 
+    public int getMenuOrder() {
+        return menuOrder;
+    }
 }

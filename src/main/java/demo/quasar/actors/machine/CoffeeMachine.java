@@ -4,7 +4,7 @@ import co.paralleluniverse.actors.ActorRef;
 import co.paralleluniverse.actors.BasicActor;
 import co.paralleluniverse.common.util.Exceptions;
 import co.paralleluniverse.fibers.SuspendExecution;
-import demo.quasar.actors.barista.message.CoffeReady;
+import demo.quasar.actors.barista.message.CoffeeReady;
 import demo.quasar.actors.machine.common.NoMoreCoffeeException;
 import demo.quasar.actors.machine.common.RestartException;
 import demo.quasar.actors.machine.message.MakeCoffee;
@@ -52,7 +52,7 @@ public class CoffeeMachine extends BasicActor {
         restartIn = restartIn - makeCoffee.getCoffeeType().getTime();
         capsules--;
 
-        baristaRef.send(new CoffeReady(makeCoffee.getCustomerName(), makeCoffee.getCoffeeType()));
+        baristaRef.send(new CoffeeReady(makeCoffee.getCustomerName(), makeCoffee.getCoffeeType()));
     }
 
     private boolean checkRestartTime(int preparationTime) {
