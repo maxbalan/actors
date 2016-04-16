@@ -3,6 +3,7 @@ package demo.quasar.actors.customer;
 import co.paralleluniverse.actors.ActorRef;
 import co.paralleluniverse.actors.BasicActor;
 import co.paralleluniverse.fibers.SuspendExecution;
+import co.paralleluniverse.fibers.Suspendable;
 import demo.quasar.actors.barista.message.Order;
 import demo.quasar.actors.common.CoffeeType;
 import demo.quasar.actors.customer.message.Messages;
@@ -39,6 +40,7 @@ public class Customer extends BasicActor {
             }
         }
     }
+    @Suspendable
 
     private void makeAnOrder() throws SuspendExecution {
         int i = new Random().nextInt(5)+1;
@@ -46,7 +48,9 @@ public class Customer extends BasicActor {
 
         this.baristaRef.send(new Order(coffeeType, self().getName()));
 
+        System.out.println(String.format("%s placed an order for %s", self().getName(), coffeeType.getValue()));
     }
+    @Suspendable
 
     private void leaveShop(TakeCoffee takeCoffee) {
         System.out.println(String.format("%s: Thank you! bye!", self().getName()));

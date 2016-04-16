@@ -16,15 +16,16 @@ import demo.quasar.actors.machine.message.MakeCoffee;
  */
 public class CoffeeMachine extends BasicActor {
 
-    private int capsules = 10;
-    private int restartIn = 30;
+    private int capsules;
+    private int restartIn;
 
     private final ActorRef baristaRef;
 
-    public CoffeeMachine(ActorRef baristaRef) {
+    public CoffeeMachine(ActorRef baristaRef, CoffeeMachineResources resources) {
         this.baristaRef = baristaRef;
+        this.capsules = resources.getCapsules();
+        this.restartIn = resources.getRestartIn();
     }
-
 
     @Override
     protected Object doRun() throws InterruptedException, SuspendExecution {
@@ -42,30 +43,29 @@ public class CoffeeMachine extends BasicActor {
     private void makeCoffee(MakeCoffee makeCoffee) throws SuspendExecution {
         if(checkCapsules()) {
             Exceptions.rethrow(new NoMoreCoffeeException("No more coffee capsules"));
-            return;
         }
 
         if(checkRestartTime(makeCoffee.getCoffeeType().getTime())) {
             Exceptions.rethrow(new RestartException("Coffee machine requires a restart"));
         }
 
+        System.out.println(String.format("%d seconds required to make %s for %s",makeCoffee.getCoffeeType().getTime(), makeCoffee.getCoffeeType().getValue(), makeCoffee.getCustomerName()));
+
         restartIn = restartIn - makeCoffee.getCoffeeType().getTime();
         capsules--;
+
+        System.out.println(String.format("Coffee machine restarts in %d", restartIn));
+        System.out.println(String.format("Coffee machine capsules left %d", capsules));
 
         baristaRef.send(new CoffeeReady(makeCoffee.getCustomerName(), makeCoffee.getCoffeeType()));
     }
 
     private boolean checkRestartTime(int preparationTime) {
-        return restartIn > preparationTime;
+        return restartIn < preparationTime;
     }
 
     private boolean checkCapsules() {
         return capsules == 0;
-    }
-
-
-    public void restartCoffeeMachine() {
-        this.restartIn = 30;
     }
 
 }
