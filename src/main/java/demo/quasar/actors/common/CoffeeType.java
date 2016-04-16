@@ -17,7 +17,7 @@ public enum CoffeeType {
     private final int time;
     private final int menuOrder;
 
-    private CoffeeType(String value, int time, int menuOrder) {
+    private CoffeeType( int time, String value, int menuOrder) {
         this.value = value;
         this.time = time;
         this.menuOrder = menuOrder;

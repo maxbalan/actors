@@ -1,6 +1,7 @@
 package demo.quasar;
 
 import co.paralleluniverse.actors.LocalActor;
+import co.paralleluniverse.fibers.SuspendExecution;
 import demo.quasar.actors.barista.Barista;
 
 import java.util.concurrent.ExecutionException;
@@ -11,7 +12,7 @@ import java.util.concurrent.ExecutionException;
  * @author Maxim Balan
  */
 public class OpenShop {
-    public static void main(String[] args) throws ExecutionException, InterruptedException {
+    public static void main(String[] args) throws ExecutionException, InterruptedException, SuspendExecution {
         LocalActor.join(new Barista().spawn());
     }
 }

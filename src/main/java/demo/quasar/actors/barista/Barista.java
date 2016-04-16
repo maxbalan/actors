@@ -2,10 +2,13 @@ package demo.quasar.actors.barista;
 
 import co.paralleluniverse.actors.ActorRef;
 import co.paralleluniverse.actors.BasicActor;
+import co.paralleluniverse.actors.LifecycleMessage;
 import co.paralleluniverse.fibers.SuspendExecution;
+import co.paralleluniverse.fibers.Suspendable;
 import demo.quasar.actors.barista.message.CoffeeReady;
 import demo.quasar.actors.barista.message.NewCustomer;
 import demo.quasar.actors.barista.message.Order;
+import demo.quasar.actors.barista.message.Setup;
 import demo.quasar.actors.customer.message.Messages;
 import demo.quasar.actors.customer.message.TakeCoffee;
 import demo.quasar.actors.entrance.Entrance;
@@ -30,15 +33,17 @@ public class Barista extends BasicActor {
     private ActorRef entranceRef;
     private ActorRef coffeeMachine;
 
-    public Barista() {
+    public Barista() throws SuspendExecution {
         super("Barista");
         this.pendingOrders = new HashMap<>();
         this.nameToWatchId = new HashMap<>();
+        self().send(new Setup());
 //        orderQueue = new LinkedList<>();
-        init();
+//        init();
     }
 
-    private void init() {
+    @Suspendable
+    private void setupBarista() {
         entranceRef = new Entrance(self()).spawn();
         coffeeMachine = new CoffeeMachine(self()).spawn();
         Object id1 = watch(entranceRef);
@@ -58,6 +63,8 @@ public class Barista extends BasicActor {
                 greetNewCustomer((NewCustomer) m);
             } else if(m instanceof Order) {
                 processOrder((Order) m);
+            } else if (m instanceof Setup) {
+                setupBarista();
             } else {
                 System.out.println("Unknown message type: "+ m);
             }
@@ -97,4 +104,10 @@ public class Barista extends BasicActor {
         unwatch(customerRef, id);
     }
 
+    @Override
+    protected Object handleLifecycleMessage(LifecycleMessage m) {
+        System.out.println("ERROR: "+m);
+
+        return super.handleLifecycleMessage(m);
+    }
 }
