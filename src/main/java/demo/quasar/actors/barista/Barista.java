@@ -4,18 +4,13 @@ import co.paralleluniverse.actors.ActorRef;
 import co.paralleluniverse.actors.BasicActor;
 import co.paralleluniverse.actors.ExitMessage;
 import co.paralleluniverse.actors.LifecycleMessage;
-import co.paralleluniverse.common.util.Exceptions;
 import co.paralleluniverse.fibers.SuspendExecution;
-import co.paralleluniverse.fibers.Suspendable;
-import demo.quasar.actors.barista.message.CoffeeReady;
-import demo.quasar.actors.barista.message.NewCustomer;
-import demo.quasar.actors.barista.message.Order;
-import demo.quasar.actors.barista.message.Setup;
+import demo.quasar.actors.barista.message.*;
 import demo.quasar.actors.customer.message.Messages;
 import demo.quasar.actors.customer.message.TakeCoffee;
 import demo.quasar.actors.entrance.Entrance;
+import demo.quasar.actors.entrance.message.EntranceMessages;
 import demo.quasar.actors.machine.CoffeeMachine;
-import demo.quasar.actors.machine.CoffeeMachineResources;
 import demo.quasar.actors.machine.common.NoMoreCoffeeException;
 import demo.quasar.actors.machine.common.RestartException;
 import demo.quasar.actors.machine.message.MakeCoffee;
@@ -31,29 +26,30 @@ import java.util.Map;
  */
 public class Barista extends BasicActor {
     private final Map<String, ActorRef> pendingOrders;
+    private final Map<Object, ActorRef> watchedCustomers;
     private final Map<String, Object> nameToWatchId;
     private final Map<String, NewCustomer> pendingCustomers;
     private final LinkedList<MakeCoffee> placedOrders;
     private ActorRef entranceRef;
     private ActorRef coffeeMachine;
-    private final CoffeeMachineResources coffeeMachineResources;
-    private boolean isCoffeeMachineReady = false;
-
-    private NewCustomer currentCustomer;
+    private boolean isCoffeeMachineReady;
+    private int capsuleCounter;
 
     public Barista() throws SuspendExecution {
         super("Barista");
+        this.isCoffeeMachineReady = false;
+        this.capsuleCounter = 10;
         this.pendingOrders = new HashMap<>();
         this.nameToWatchId = new HashMap<>();
         this.pendingCustomers = new HashMap<>();
+        this.watchedCustomers = new HashMap<>();
         this.placedOrders = new LinkedList<>();
-        coffeeMachineResources = new CoffeeMachineResources(10, 15);
     }
 
     private void setupBarista() {
         System.out.println("setup Barista");
         entranceRef = new Entrance(self()).spawn();
-        coffeeMachine = new CoffeeMachine(self(), this.coffeeMachineResources).spawn();
+        coffeeMachine = new CoffeeMachine(self(), this.capsuleCounter).spawnThread();
         Object id1 = watch(entranceRef);
         Object id2 = watch(coffeeMachine);
         nameToWatchId.put(entranceRef.getName(), id1);
@@ -67,6 +63,7 @@ public class Barista extends BasicActor {
         for(;;) {
             Object m = receive();
 
+
             if(m instanceof CoffeeReady){
                 deliverCoffee((CoffeeReady) m);
             } else if(m instanceof NewCustomer) {
@@ -75,58 +72,74 @@ public class Barista extends BasicActor {
                 processOrder((Order) m);
             } else if (m instanceof Setup) {
                 setupBarista();
+            } else if (m == BaristaMessages.RestartCoffeeMachine) {
+                restartCoffeeMachine();
+            } else if (m == BaristaMessages.StopApplication) {
+                stopApplication();
+                break;
             } else {
                 System.out.println("Unknown message type: "+ m);
             }
         }
+
+        return null;
+    }
+
+    private void stopApplication() throws SuspendExecution {
+        System.out.println("[Barista]: will shutdown the application");
+        this.entranceRef.send(EntranceMessages.CloseShop);
     }
 
     private void processOrder(Order order) throws SuspendExecution {
-        System.out.println("Barista accepted order from customer: " + order.getCustomerName());
+        System.out.println("[Barista]: accepted order from customer: " + order.getCustomerName());
         MakeCoffee coffee = new MakeCoffee(order.getCoffeeType(), order.getCustomerName());
         this.coffeeMachine.send(coffee);
         this.placedOrders.add(coffee);
     }
 
     private void greetNewCustomer(NewCustomer newCustomer) throws SuspendExecution {
-        if(isCoffeeMachineReady) {
-            System.out.println(String.format("Hello %s! what would you like to order?", newCustomer.getCustomerRef().getName()));
+        //watch new customer
+        Object id = watch(newCustomer.getCustomerRef());
+        this.watchedCustomers.put(id, newCustomer.getCustomerRef());
+        this.nameToWatchId.put(newCustomer.getCustomerRef().getName(), id);
 
-            //watch new customer
-            Object id = watch(newCustomer.getCustomerRef());
-            this.nameToWatchId.put(newCustomer.getCustomerRef().getName(), id);
+        if(isCoffeeMachineReady) {
+            System.out.println(String.format("[Barista]: Hello %s! what would you like to order?", newCustomer.getCustomerRef().getName()));
 
             //register for queue
             this.pendingOrders.put(newCustomer.getCustomerRef().getName(), newCustomer.getCustomerRef());
 
             newCustomer.getCustomerRef().send(Messages.PlaceOrder);
         } else {
-            System.out.println(String.format("Hello %s! please wait a minute we got an issue!", newCustomer.getCustomerRef().getName()));
+            System.out.println(String.format("[Barista]: Hello %s! please wait a minute we got an issue!", newCustomer.getCustomerRef().getName()));
             this.pendingCustomers.put(newCustomer.getCustomerRef().getName(), newCustomer);
         }
     }
 
     private void deliverCoffee(CoffeeReady coffeReady) throws SuspendExecution {
         ActorRef customerRef = this.pendingOrders.remove(coffeReady.getCustomerName());
-        System.out.println(String.format("Coffee is to be delivered for %s", customerRef.getName()));
-        this.coffeeMachineResources.updateCapsules(1);
+        if (customerRef != null) {
+            System.out.println(String.format("[Barista]: Coffee is to be delivered for %s", customerRef.getName()));
+            this.capsuleCounter --;
 //        System.out.println(String.format("Actor address is %s", customerRef));
 
-        //unwatch customer
-        Object id = this.nameToWatchId.remove(customerRef.getName());
-        unwatch(customerRef, id);
+            //unwatch customer
+            Object id = this.nameToWatchId.remove(customerRef.getName());
+            unwatch(customerRef, id);
 
-        customerRef.send(new TakeCoffee(coffeReady.getCoffeeType()));
-        if(!this.placedOrders.isEmpty())
-            this.placedOrders.removeFirst();
-        this.pendingCustomers.remove(customerRef.getName());
-
+            customerRef.send(new TakeCoffee(coffeReady.getCoffeeType()));
+            if (!this.placedOrders.isEmpty())
+                this.placedOrders.removeFirst();
+            this.pendingCustomers.remove(customerRef.getName());
+        } else {
+            System.out.println("[Barista]: Customer left, throw away the order");
+        }
 
     }
 
     @Override
     protected Object handleLifecycleMessage(LifecycleMessage m) {
-        System.out.println("ERROR: "+m);
+        System.out.println("[Barista]: ERROR: "+m);
 
         if(m instanceof ExitMessage){
             ExitMessage exitMessage = (ExitMessage) m;
@@ -147,44 +160,47 @@ public class Barista extends BasicActor {
                         isCoffeeMachineReady = false;
                         RestartException restartException = (RestartException) runtimeException.getCause();
                         System.out.println(restartException.getMessage());
-                        restartCoffeeMachine();
-                    } else if (runtimeException.getCause() instanceof NoMoreCoffeeException) {
 
+                        return BaristaMessages.RestartCoffeeMachine;
+//                        self().send(BaristaMessages.RestartCoffeeMachine);
+                    } else if (runtimeException.getCause() instanceof NoMoreCoffeeException) {
+                        return BaristaMessages.StopApplication;
                     }
                 }
             }
+
+            if(exitMessage.getWatch() != null) {
+                if(this.watchedCustomers.containsKey(exitMessage.getWatch())) {
+                    ActorRef ref = this.watchedCustomers.remove(exitMessage.getWatch());
+                    this.pendingOrders.remove(ref.getName());
+                    this.pendingCustomers.remove(ref.getName());
+                    this.nameToWatchId.remove(ref.getName());
+                }
+
+            }
+
         }
 
         return super.handleLifecycleMessage(m);
     }
 
-    @Suspendable
-    private void restartCoffeeMachine() {
-        System.out.println("Capsules = "+coffeeMachineResources.getCapsules());
-        coffeeMachine = new CoffeeMachine(self(), this.coffeeMachineResources).spawn();
+    private void restartCoffeeMachine() throws SuspendExecution {
+        System.out.println("[Barista]: Capsules = "+this.capsuleCounter);
+        coffeeMachine = new CoffeeMachine(self(), this.capsuleCounter).spawnThread();
         Object id2 = watch(coffeeMachine);
         nameToWatchId.put(coffeeMachine.getName(), id2);
         isCoffeeMachineReady = true;
 
         while (!placedOrders.isEmpty()) {
-            try {
-                coffeeMachine.send(placedOrders.removeFirst());
-            } catch (SuspendExecution suspendExecution) {
-                Exceptions.rethrow(suspendExecution);
-            }
+            coffeeMachine.send(placedOrders.removeFirst());
         }
 
-
         for(Map.Entry<String, NewCustomer> entry: pendingCustomers.entrySet()) {
-            try {
-                self().send(entry.getValue());
-            } catch (SuspendExecution suspendExecution) {
-                Exceptions.rethrow(suspendExecution);
-            }
+            self().send(entry.getValue());
         }
 
         pendingCustomers.clear();
 
-        System.out.println("Coffee machine was successfully restarted!");
+        System.out.println("[Barista]: Coffee machine was successfully restarted! +++++++++++++++++++++++++++++++++++++++++++++");
     }
 }

@@ -3,7 +3,6 @@ package demo.quasar.actors.customer;
 import co.paralleluniverse.actors.ActorRef;
 import co.paralleluniverse.actors.BasicActor;
 import co.paralleluniverse.fibers.SuspendExecution;
-import co.paralleluniverse.fibers.Suspendable;
 import demo.quasar.actors.barista.message.Order;
 import demo.quasar.actors.common.CoffeeType;
 import demo.quasar.actors.customer.message.Messages;
@@ -19,10 +18,12 @@ import java.util.Random;
 public class Customer extends BasicActor {
 
     private final ActorRef baristaRef;
+    private boolean isOrderPlaced;
 
     public Customer(ActorRef baristaRef, String name) {
         super(name);
         this.baristaRef = baristaRef;
+        this.isOrderPlaced = false;
     }
 
 
@@ -33,27 +34,37 @@ public class Customer extends BasicActor {
 
             if(m instanceof TakeCoffee) {
                 leaveShop((TakeCoffee) m);
+                break;
             } else if(m == Messages.PlaceOrder) {
                 makeAnOrder();
+            } else if (m == Messages.OrderCancelled) {
+                cancelledOrder();
+                break;
             } else {
                 System.out.println("Unknown message!");
             }
         }
+
+        return null;
     }
-    @Suspendable
+
+    private void cancelledOrder() {
+        if(this.isOrderPlaced) {
+            System.out.println(String.format("[%s]: fu*k this coffee shop", self().getName()));
+        } else {
+            System.out.println(String.format("[%s]: ok will come tomorrow again", self().getName()));
+        }
+    }
 
     private void makeAnOrder() throws SuspendExecution {
         int i = new Random().nextInt(5)+1;
         CoffeeType coffeeType = CoffeeType.getCoffee(i);
 
         this.baristaRef.send(new Order(coffeeType, self().getName()));
-
-        System.out.println(String.format("%s placed an order for %s", self().getName(), coffeeType.getValue()));
+        this.isOrderPlaced = true;
+        System.out.println(String.format("[%s]: placed an order for %s", self().getName(), coffeeType.getValue()));
     }
-    @Suspendable
-
     private void leaveShop(TakeCoffee takeCoffee) {
-        System.out.println(String.format("%s: Thank you! bye!", self().getName()));
-
+        System.out.println(String.format("[%s]: Thank you! bye!", self().getName()));
     }
 }

@@ -7,11 +7,11 @@ package demo.quasar.actors.common;
  */
 public enum CoffeeType {
 
-    ESPRESSO    (1,"espresso", 2),
-    CAPPUCCINO  (2,"cappuccino", 3),
-    MOCHA       (3,"mocha", 5),
-    LATTE       (4,"latte", 15),
-    AMERICANO   (5,"americano", 7);
+    ESPRESSO    (1,"espresso", 1),
+    CAPPUCCINO  (2,"cappuccino", 1),
+    MOCHA       (3,"mocha", 1),
+    LATTE       (4,"latte", 1),
+    AMERICANO   (5,"americano", 1);
 
     private final String value;
     private final int time;
