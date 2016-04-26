@@ -46,26 +46,22 @@ public class CoffeeMachine extends BasicActor {
                 e.printStackTrace();
             }
             if(m instanceof MakeCoffee) {
-                try {
+
                     makeCoffee((MakeCoffee) m);
-                } catch (RestartException | NoMoreCoffeeException e) {
-                    scheduler.shutdown();
-                   throw  Exceptions.rethrow(new RuntimeException(e));
-                }
+
             } else {
                 System.out.println("Unknown message type: "+ m);
             }
         }
     }
 
-    @Suspendable
-    private void makeCoffee(MakeCoffee makeCoffee) throws SuspendExecution, RestartException, NoMoreCoffeeException {
+    private void makeCoffee(MakeCoffee makeCoffee) throws SuspendExecution{
         if(checkCapsules()) {
-            throw new NoMoreCoffeeException("[CoffeeMachine]: No more coffee capsules");
+            Exceptions.rethrow(new NoMoreCoffeeException("[CoffeeMachine]: No more coffee capsules"));
         }
 
         if(checkRestartTime(makeCoffee.getCoffeeType().getTime())) {
-            throw new RestartException("[CoffeeMachine]: Coffee machine requires a restart");
+            Exceptions.rethrow(new RestartException("[CoffeeMachine]: Coffee machine requires a restart"));
         }
 
         System.out.println(String.format("[CoffeeMachine]: %d seconds required to make %s for %s",makeCoffee.getCoffeeType().getTime(), makeCoffee.getCoffeeType().getValue(), makeCoffee.getCustomerName()));
